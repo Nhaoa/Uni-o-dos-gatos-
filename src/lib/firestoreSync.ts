@@ -123,6 +123,8 @@ export function useFirestoreRoomSync({
   const canSync = Boolean(
     enabled &&
       serverReady &&
+      db &&
+      auth &&
       firebaseUser &&
       firebaseUser.emailVerified === true
   );

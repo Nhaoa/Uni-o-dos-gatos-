@@ -18,6 +18,7 @@ import { computeSudokuReward, generateSudokuPuzzle } from './src/logic/sudoku.ts
 import { sanitizeGalleryItems } from './src/logic/gallery.ts';
 import {
   applyAdminFishEdit,
+  applyAdminFullHack,
   isAdminAccount,
   parseAdminFishAmount,
 } from './src/logic/adminHack.ts';
@@ -718,6 +719,17 @@ async function bootstrap() {
         }
       }
 
+      if (req.body?.hackPayload && typeof req.body.hackPayload === 'object') {
+        entry.state = applyAdminFullHack(entry.state, req.body.hackPayload);
+        await saveRoomState(roomId, entry.state);
+        broadcastRoomState(roomId, false);
+        res.json({
+          ok: true,
+          state: sanitizeStateForClient(entry.state, 'cat1'),
+        });
+        return;
+      }
+
       const parsed = parseAdminFishAmount(req.body?.fish);
       if (!parsed.ok) {
         res.status(400).json({ error: parsed.error });
@@ -737,7 +749,7 @@ async function bootstrap() {
       });
     } catch (err) {
       console.error('POST /api/room/admin-fish failed:', err);
-      res.status(500).json({ error: 'Não foi possível editar os peixinhos.' });
+      res.status(500).json({ error: 'Não foi possível salvar as alterações do Admin.' });
     }
   });
 

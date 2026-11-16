@@ -31,6 +31,8 @@ import {
   auth,
   connectGoogleDriveWithPopup,
   getDriveAccessToken,
+  isFirebaseConfigured,
+  subscribeFirebaseConfig,
 } from '../../lib/firebase';
 import {
   createGalleryDriveFolder,
@@ -99,16 +101,27 @@ export const GalleryScreen: React.FC<GalleryScreenProps> = ({
   const corridorRef = useRef<HTMLDivElement | null>(null);
   const totalSlots = exhibits.length + 1;
 
+  const [firebaseReady, setFirebaseReady] = useState<boolean>(() =>
+    isFirebaseConfigured()
+  );
+
+  useEffect(() => {
+    return subscribeFirebaseConfig(() => {
+      setFirebaseReady(isFirebaseConfigured());
+    });
+  }, []);
+
   useEffect(() => {
     setDriveToken(getDriveAccessToken());
   }, [isActiveTab]);
 
   useEffect(() => {
+    if (!firebaseReady || !auth) return;
     const unsub = onAuthStateChanged(auth, () => {
       setDriveToken(getDriveAccessToken());
     });
     return () => unsub();
-  }, []);
+  }, [firebaseReady]);
 
   const updateWalkerPosition = useCallback((slot: number) => {
     const container = corridorRef.current;

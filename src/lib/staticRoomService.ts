@@ -23,7 +23,9 @@ import { resolveRoleByUidAndNick } from '../logic/staticRoomAuth';
 import { validateNicknameChange } from '../logic/authMatch';
 import {
   ADMIN_OWNER_EMAIL,
+  type AdminFullHackPayload,
   applyAdminFishEdit,
+  applyAdminFullHack,
   isAdminAccount,
   parseAdminFishAmount,
 } from '../logic/adminHack';
@@ -117,7 +119,7 @@ export async function checkSessionStatic(
   firebaseUser: User | null
 ): Promise<{ hasPassword: boolean; linkedRole: PlayerRole | null }> {
   const fallbackMeta = readCachedRoomMeta(roomId);
-  if (!firebaseUser || firebaseUser.emailVerified === false) {
+  if (!firebaseUser || firebaseUser.emailVerified === false || !db) {
     const pub = await fetchPublicRoomMetaStatic(roomId);
     return { hasPassword: pub.hasPassword, linkedRole: null };
   }
@@ -159,6 +161,9 @@ export async function enterRoomStatic(params: {
 }): Promise<StaticEnterRoomResult> {
   const { roomId, nickname, password, firebaseUser } = params;
 
+  if (!db) {
+    return { ok: false, error: 'Insira a chave da API Firebase na tela de login primeiro.' };
+  }
   if (!firebaseUser || firebaseUser.emailVerified === false) {
     return { ok: false, error: 'Sua conta Google precisa estar verificada para entrar.' };
   }
@@ -524,7 +529,7 @@ export async function adminSaveFishStatic(params: {
   }
 
   const nextState = applyAdminFishEdit(state, targetRole, parsed.value);
-  if (firebaseUser && !isDevBypass) {
+  if (firebaseUser && !isDevBypass && db) {
     try {
       await updateDoc(doc(db, 'rooms', roomId), {
         wallets: nextState.wallets,
@@ -538,3 +543,50 @@ export async function adminSaveFishStatic(params: {
   writeCachedRoomState(roomId, nextState);
   return { ok: true, state: nextState };
 }
+
+export async function adminSaveFullHackStatic(params: {
+  roomId: string;
+  hackPayload: AdminFullHackPayload;
+  callerRole: PlayerRole;
+  firebaseUser: User | null;
+  isDevBypass: boolean;
+  state: SharedState;
+}): Promise<{ ok: true; state: SharedState } | { ok: false; error: string }> {
+  const { roomId, hackPayload, callerRole, firebaseUser, isDevBypass, state } = params;
+  if (
+    !isAdminAccount({
+      email: firebaseUser?.email,
+      role: callerRole,
+      isDevBypass,
+    })
+  ) {
+    return { ok: false, error: 'Acesso restrito ao administrador.' };
+  }
+
+  const nextState = applyAdminFullHack(state, hackPayload);
+  if (firebaseUser && !isDevBypass && db) {
+    try {
+      await updateDoc(doc(db, 'rooms', roomId), {
+        loveScore: nextState.loveScore,
+        streak: nextState.streak,
+        presence: nextState.presence,
+        scores: {
+          cat1Wins: nextState.scores.cat1Wins,
+          cat2Wins: nextState.scores.cat2Wins,
+          ties: nextState.scores.ties,
+        },
+        wallets: nextState.wallets,
+        inventories: nextState.inventories,
+        cat1: nextState.cat1,
+        cat2: nextState.cat2,
+        lastStatsUpdateTime: nextState.lastStatsUpdateTime,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `rooms/${roomId}`);
+    }
+  }
+  writeCachedRoomState(roomId, nextState);
+  return { ok: true, state: nextState };
+}
+

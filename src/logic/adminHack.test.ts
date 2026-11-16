@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   ADMIN_OWNER_EMAIL,
   applyAdminFishEdit,
+  applyAdminFullHack,
+  extractAdminHackDraft,
   isAdminAccount,
   MAX_ADMIN_FISH,
   parseAdminFishAmount,
@@ -51,4 +53,40 @@ test('applyAdminFishEdit updates only target role fish while preserving paws and
   assert.deepEqual(updated.wallets.cat1, { fish: 10, paws: 436, coupleCoins: 29 });
   assert.deepEqual(updated.wallets.cat2, { fish: 3, paws: 3, coupleCoins: 29 });
   assert.equal(base.wallets.cat1.fish, 289);
+});
+
+test('applyAdminFullHack edits Admin and Amy values, wallets, vitals, and streak counter', () => {
+  const base = createDefaultSharedState();
+  const draft = extractAdminHackDraft(base);
+  draft.streak = { current: 45, best: 50, totalDays: 60 };
+  draft.syncedToday = true;
+  draft.loveScore = 99;
+  draft.scores = { cat1Wins: 12, cat2Wins: 15, ties: 4 };
+  draft.cat1.wallet = { fish: 777, paws: 888, coupleCoins: 55 };
+  draft.cat1.hunger = 95;
+  draft.cat1.energy = 90;
+  draft.cat1.happiness = 100;
+  draft.cat1.speech = 'Hack do Admin ativo!';
+  draft.cat1.inventory.food_salmon = 25;
+
+  draft.cat2.wallet = { fish: 500, paws: 600, coupleCoins: 55 };
+  draft.cat2.hunger = 100;
+  draft.cat2.energy = 100;
+  draft.cat2.happiness = 100;
+  draft.cat2.speech = 'Amy 100% feliz!';
+  draft.cat2.inventory.food_starfruit = 30;
+
+  const updated = applyAdminFullHack(base, draft, '2026-11-16');
+  assert.deepEqual(updated.streak, { current: 45, best: 50, totalDays: 60 });
+  assert.equal(updated.presence.syncedToday, true);
+  assert.equal(updated.loveScore, 99);
+  assert.equal(updated.scores.cat1Wins, 12);
+  assert.equal(updated.scores.cat2Wins, 15);
+  assert.equal(updated.scores.ties, 4);
+  assert.deepEqual(updated.wallets.cat1, { fish: 777, paws: 888, coupleCoins: 55 });
+  assert.deepEqual(updated.wallets.cat2, { fish: 500, paws: 600, coupleCoins: 55 });
+  assert.equal(updated.cat1.hunger, 95);
+  assert.equal(updated.cat2.happiness, 100);
+  assert.equal(updated.inventories.cat1.food_salmon, 25);
+  assert.equal(updated.inventories.cat2.food_starfruit, 30);
 });

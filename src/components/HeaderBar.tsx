@@ -102,8 +102,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               <button
                 type="button"
                 onClick={onOpenAdminFish}
-                title="Admin: Editar peixinhos diretamente"
-                aria-label="Editar peixes do Admin"
+                title="Painel Hack do Admin: Editar todos os valores (Admin, Amy e Contador de Dias)"
+                aria-label="Abrir Painel Hack do Admin"
                 className="bg-amber-300 hover:bg-amber-400 text-red-950 border border-[#2b1111]/60 p-1 rounded-md cursor-pointer flex items-center justify-center"
               >
                 <Pencil className="w-3 h-3" />

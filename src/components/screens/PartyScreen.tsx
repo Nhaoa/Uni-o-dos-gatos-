@@ -293,10 +293,10 @@ export const PartyScreen: React.FC<PartyScreenProps> = ({
           <div className="md:col-span-2 bg-gradient-to-r from-amber-100 via-[#fff8ed] to-red-100 border-2 border-[#2b1111] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-red-950">
-                🛠️ Painel Secreto do Admin — Peixinhos
+                🛠️ Painel Hack Mestre do Admin ({state.nicknames.cat1} & {state.nicknames.cat2})
               </h3>
               <p className="text-xs text-[#2b1111]/75 mt-0.5">
-                Visível apenas para você ({state.nicknames.cat1}). Altere o saldo de peixinhos direto pelo site.
+                Exclusivo para você ({state.nicknames.cat1}). Edite contador de dias seguidos, moedas, status vitais, placar e comidas seus e da {state.nicknames.cat2}.
               </p>
             </div>
             <button
@@ -304,7 +304,7 @@ export const PartyScreen: React.FC<PartyScreenProps> = ({
               onClick={onOpenAdminFish}
               className="sketch-btn bg-red-700 hover:bg-red-800 text-amber-100 text-xs font-bold px-4 py-2 rounded-xl cursor-pointer whitespace-nowrap"
             >
-              🐟 Editar Peixinhos
+              ⚡ Abrir Painel Hack Completo
             </button>
           </div>
         )}

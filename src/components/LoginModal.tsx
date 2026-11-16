@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { signInWithPopup, signOut, User } from 'firebase/auth';
+import { KeyRound, ShieldCheck } from 'lucide-react';
 import {
   auth,
   captureGoogleCredentialToken,
   clearDriveAccessToken,
+  clearFirebaseApiKey,
+  getStoredFirebaseApiKey,
   googleAuthProvider,
+  isFirebaseConfigured,
+  isValidFirebaseApiKey,
+  saveFirebaseApiKey,
+  subscribeFirebaseConfig,
 } from '../lib/firebase';
 import { PlayerRole, SharedState } from '../types/game';
 import { DEFAULT_ROOM_ID } from '../hooks/useGameSocket';
@@ -39,16 +46,83 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   linkedRole,
   onLoginSuccess,
 }) => {
+  const [apiKeyInput, setApiKeyInput] = useState<string>(() => getStoredFirebaseApiKey());
+  const [firebaseConfigured, setFirebaseConfigured] = useState<boolean>(() =>
+    isFirebaseConfigured()
+  );
+  const [editingApiKey, setEditingApiKey] = useState<boolean>(() => !isFirebaseConfigured());
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    return subscribeFirebaseConfig(() => {
+      const configured = isFirebaseConfigured();
+      setFirebaseConfigured(configured);
+      if (configured) {
+        setApiKeyInput(getStoredFirebaseApiKey());
+      }
+    });
+  }, []);
+
   if (!open) return null;
+
+  const handleApplyApiKey = () => {
+    setError('');
+    const trimmed = apiKeyInput.trim();
+    if (!isValidFirebaseApiKey(trimmed)) {
+      setError('Insira uma chave Firebase válida (começa com "AIza...").');
+      return;
+    }
+    const res = saveFirebaseApiKey(trimmed);
+    if (!res.ok) {
+      setError(res.error || 'Chave da API Firebase inválida.');
+      return;
+    }
+    setFirebaseConfigured(true);
+    setEditingApiKey(false);
+  };
+
+  const handleResetApiKey = async () => {
+    setError('');
+    if (auth) {
+      try {
+        await signOut(auth);
+      } catch {
+        // ignore signOut errors when switching key
+      }
+    }
+    clearFirebaseApiKey();
+    setApiKeyInput('');
+    setFirebaseConfigured(false);
+    setEditingApiKey(true);
+  };
 
   const handleGoogleSignIn = async () => {
     setError('');
+    if (!isFirebaseConfigured()) {
+      const trimmed = apiKeyInput.trim();
+      if (isValidFirebaseApiKey(trimmed)) {
+        const saved = saveFirebaseApiKey(trimmed);
+        if (!saved.ok) {
+          setError(saved.error || 'Ative primeiro a Chave da API Firebase.');
+          return;
+        }
+        setFirebaseConfigured(true);
+        setEditingApiKey(false);
+      } else {
+        setError('Insira e ative a Chave da API Firebase ("AIza...") antes de conectar o Google.');
+        return;
+      }
+    }
+
+    if (!auth) {
+      setError('Firebase ainda não inicializado. Verifique a chave da API.');
+      return;
+    }
+
     setGoogleLoading(true);
     try {
       const result = await signInWithPopup(auth, googleAuthProvider);
@@ -57,6 +131,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       const code = (err as { code?: string })?.code || '';
       if (code === 'auth/popup-closed-by-user') {
         setError('Login com Google cancelado.');
+      } else if (code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.' || code.includes('api-key')) {
+        setError('Chave da API Firebase inválida. Confira a chave "AIza..." inserida.');
+        setEditingApiKey(true);
       } else if (code === 'auth/unauthorized-domain') {
         const host = typeof window !== 'undefined' ? window.location.hostname : 'seu-dominio.github.io';
         setError(
@@ -73,12 +150,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const handleGoogleSignOut = async () => {
     setError('');
     clearDriveAccessToken();
-    await signOut(auth);
+    if (auth) {
+      await signOut(auth);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!firebaseConfigured) {
+      setError('Insira a Chave da API Firebase antes de entrar.');
+      return;
+    }
 
     if (!firebaseUser || !idToken) {
       setError('Conecte sua conta Google primeiro para entrar.');
@@ -197,7 +281,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     >
       <form
         onSubmit={handleSubmit}
-        className="bg-[#fff8ed] max-w-md w-full p-5 sm:p-6 rounded-3xl sketch-border space-y-4 text-center border-t-8 border-t-red-700 my-auto"
+        className="bg-[#fff8ed] max-w-md w-full p-5 sm:p-6 rounded-3xl sketch-border space-y-3.5 text-center border-t-8 border-t-red-700 my-auto"
       >
         <div className="space-y-1">
           <span className="text-3xl block" aria-hidden="true">☭🔐</span>
@@ -205,13 +289,87 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             Credencial do Comitê Central
           </h2>
           <p className="text-xs text-[#2b1111]/80">
-            Conecte sua conta Google e confirme seu último nick e senha da sala.
+            Insira a chave da API Firebase, conecte sua conta Google e confirme seu nick.
           </p>
         </div>
 
-        {/* Google Account Auth Bar */}
+        {/* Step 1: Firebase API Key (saved only in browser localStorage, never in GitHub) */}
+        <div className="bg-amber-50/90 p-3.5 rounded-2xl border-2 border-red-900/30 space-y-2 text-left">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-red-950 flex items-center gap-1.5">
+              <KeyRound className="w-3.5 h-3.5 text-red-700" />
+              Chave da API Firebase
+            </span>
+            {firebaseConfigured && !editingApiKey && (
+              <button
+                type="button"
+                onClick={() => setEditingApiKey(true)}
+                className="text-[11px] font-bold text-red-800 hover:underline cursor-pointer"
+              >
+                Trocar chave
+              </button>
+            )}
+          </div>
+
+          {firebaseConfigured && !editingApiKey ? (
+            <div className="flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-600/40 rounded-xl px-3 py-1.5">
+              <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                Chave ativa neste navegador ({apiKeyInput.slice(0, 8)}…{apiKeyInput.slice(-4)})
+              </span>
+              <button
+                type="button"
+                onClick={handleResetApiKey}
+                className="text-[10px] font-bold text-red-800 hover:underline shrink-0 cursor-pointer"
+              >
+                Limpar
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[11px] text-[#2b1111]/75 leading-snug">
+                Para não expor a chave no GitHub, cole sua <code className="font-mono-num font-bold">apiKey</code> do Firebase (<code className="font-mono-num">AIza...</code>). Ela fica salva apenas no seu navegador.
+              </p>
+              <div className="flex gap-1.5">
+                <input
+                  id="login-firebase-api-key"
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setApiKeyInput(val);
+                    setError('');
+                    if (isValidFirebaseApiKey(val.trim())) {
+                      const res = saveFirebaseApiKey(val.trim());
+                      if (res.ok) {
+                        setFirebaseConfigured(true);
+                        setEditingApiKey(false);
+                      }
+                    }
+                  }}
+                  placeholder="AIzaSy..."
+                  autoComplete="off"
+                  className="flex-1 text-xs px-3 py-2 rounded-xl border border-[#2b1111] bg-white font-mono-num focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyApiKey}
+                  className="sketch-btn bg-amber-300 hover:bg-amber-400 text-red-950 font-bold text-xs px-3 py-2 rounded-xl cursor-pointer shrink-0"
+                >
+                  Ativar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Step 2: Google Account Auth Bar */}
         <div className="bg-white p-3.5 rounded-2xl border-2 border-[#2b1111]/25 space-y-2 text-left">
-          {!authReady ? (
+          {!firebaseConfigured ? (
+            <span className="text-xs font-semibold text-amber-900 block">
+              Ative a Chave da API Firebase acima para liberar o login com Google.
+            </span>
+          ) : !authReady ? (
             <span className="text-xs font-semibold text-[#2b1111]/70 block">Verificando sessão...</span>
           ) : firebaseUser ? (
             <>
@@ -255,6 +413,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           )}
         </div>
 
+        {/* Step 3: Nickname & Room Password */}
         <div className="bg-white p-3.5 rounded-2xl border border-[#2b1111]/30 text-left space-y-3">
           <div>
             <label htmlFor="login-nick" className="text-xs font-bold text-[#2b1111]/85 block mb-1">
@@ -296,7 +455,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         <button
           type="submit"
-          disabled={submitting || !firebaseUser || !idToken}
+          disabled={submitting || !firebaseConfigured || !firebaseUser || !idToken}
           data-start="true"
           className="sketch-btn w-full bg-red-700 hover:bg-red-800 text-amber-200 font-bold text-sm py-3 rounded-2xl cursor-pointer disabled:opacity-50"
         >

@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onIdTokenChanged, User } from 'firebase/auth';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { auth } from './lib/firebase';
+import {
+  auth,
+  isFirebaseConfigured,
+  subscribeFirebaseConfig,
+} from './lib/firebase';
 import { useFirestoreRoomSync } from './lib/firestoreSync';
 import {
   adminSaveFishStatic,
+  adminSaveFullHackStatic,
   checkSessionStatic,
   isStaticHostingMode,
   markBackendUnavailable,
@@ -41,7 +46,7 @@ import { BottomDock, SCREEN_TABS, ScreenTabId } from './components/BottomDock';
 import { LoginModal } from './components/LoginModal';
 import { SyncModal } from './components/SecondaryModals';
 import { AdminFishModal } from './components/AdminFishModal';
-import { isAdminAccount } from './logic/adminHack';
+import { AdminFullHackPayload, isAdminAccount } from './logic/adminHack';
 import { WarehouseScreen } from './components/screens/WarehouseScreen';
 import { MarketScreen } from './components/screens/MarketScreen';
 import { GamesScreen } from './components/screens/GamesScreen';
@@ -93,9 +98,12 @@ export default function App() {
   const initialPrefs = getInitialPreferences();
   const [myRole, setMyRole] = useState<PlayerRole>(initialPrefs.role);
   const [devBypass] = useState<boolean>(initialPrefs.devBypass);
+  const [firebaseReady, setFirebaseReady] = useState<boolean>(() =>
+    isFirebaseConfigured()
+  );
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
-  const [authReady, setAuthReady] = useState<boolean>(false);
+  const [authReady, setAuthReady] = useState<boolean>(() => !isFirebaseConfigured());
   const [linkedRole, setLinkedRole] = useState<PlayerRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(initialPrefs.devBypass);
   const [muted, setMuted] = useState<boolean>(isSoundMuted());
@@ -180,6 +188,21 @@ export default function App() {
   );
 
   useEffect(() => {
+    return subscribeFirebaseConfig(() => {
+      setFirebaseReady(isFirebaseConfigured());
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseReady || !auth) {
+      setFirebaseUser(null);
+      setIdToken(null);
+      setLinkedRole(null);
+      setAuthReady(true);
+      return;
+    }
+
+    setAuthReady(false);
     const unsub = onIdTokenChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
@@ -239,7 +262,7 @@ export default function App() {
       setAuthReady(true);
     });
     return () => unsub();
-  }, [devBypass, setHasRoomPassword]);
+  }, [firebaseReady, devBypass, setHasRoomPassword]);
 
   useEffect(() => {
     document.body.dataset.state = isLoggedIn ? 'playing' : 'login';
@@ -503,6 +526,81 @@ export default function App() {
       return { ok: true };
     } catch {
       return { ok: false, error: 'Erro de conexão ao salvar os peixinhos.' };
+    }
+  };
+
+  const handleAdminSaveHack = async (
+    hackPayload: AdminFullHackPayload
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const canDevBypass = Boolean(import.meta.env.DEV && devBypass && !idToken);
+    if (!idToken && !canDevBypass) {
+      return { ok: false, error: 'Sessão expirada. Entre novamente com o Google.' };
+    }
+    try {
+      if (isStaticHostingMode()) {
+        const res = await adminSaveFullHackStatic({
+          roomId: DEFAULT_ROOM_ID,
+          hackPayload,
+          callerRole: myRole,
+          firebaseUser,
+          isDevBypass: canDevBypass,
+          state,
+        });
+        if (!res.ok) return { ok: false, error: res.error };
+        setState(res.state);
+        sfx.win();
+        showToast(
+          `Hack Admin aplicado! 🔥 ${res.state.streak.current} dias · ${state.nicknames.cat1} & ${state.nicknames.cat2} sincronizados ⚡`
+        );
+        return { ok: true };
+      }
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (idToken) {
+        headers.Authorization = `Bearer ${idToken}`;
+      }
+      const res = await fetch('/api/room/admin-fish', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          roomId: DEFAULT_ROOM_ID,
+          hackPayload,
+          ...(canDevBypass ? { devBypass: true, callerRole: myRole } : {}),
+        }),
+      });
+      const ct = res.headers.get('content-type') || '';
+      if (res.status === 404 || !ct.includes('application/json')) {
+        markBackendUnavailable();
+        const fallback = await adminSaveFullHackStatic({
+          roomId: DEFAULT_ROOM_ID,
+          hackPayload,
+          callerRole: myRole,
+          firebaseUser,
+          isDevBypass: canDevBypass,
+          state,
+        });
+        if (!fallback.ok) return { ok: false, error: fallback.error };
+        setState(fallback.state);
+        sfx.win();
+        showToast(
+          `Hack Admin aplicado! 🔥 ${fallback.state.streak.current} dias · ${state.nicknames.cat1} & ${state.nicknames.cat2} sincronizados ⚡`
+        );
+        return { ok: true };
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data?.error || 'Não foi possível aplicar o Hack do Admin.' };
+      }
+      if (data.state) {
+        setState(data.state);
+      }
+      sfx.win();
+      showToast(
+        `Hack Admin aplicado! 🔥 ${data.state?.streak?.current ?? hackPayload.streak.current} dias · ${state.nicknames.cat1} & ${state.nicknames.cat2} sincronizados ⚡`
+      );
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Erro de conexão ao salvar o Hack do Admin.' };
     }
   };
 
@@ -1280,6 +1378,7 @@ export default function App() {
           open={adminFishOpen}
           state={state}
           onClose={() => setAdminFishOpen(false)}
+          onSaveHack={handleAdminSaveHack}
           onSaveFish={handleAdminSaveFish}
         />
       )}
