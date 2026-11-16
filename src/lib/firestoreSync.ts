@@ -138,7 +138,26 @@ export function useFirestoreRoomSync({
 
     try {
       const cleanGallery = sanitizeGalleryItems(targetState.galleryItems);
-      const meta = remoteMetaRef.current;
+      let meta = remoteMetaRef.current;
+
+      if (!meta.exists) {
+        try {
+          const checkSnap = await getDoc(roomRef);
+          if (checkSnap.exists()) {
+            const data = checkSnap.data() as Record<string, unknown>;
+            meta = {
+              exists: true,
+              ownerUid: String(data.ownerUid || user.uid),
+              partnerUid: String(data.partnerUid || ''),
+              remoteTs: Number(data.lastStatsUpdateTime || 0),
+              galleryHashes: (data.galleryHashes as Record<string, string>) || {},
+            };
+            remoteMetaRef.current = meta;
+          }
+        } catch {
+          // ignore check error and proceed with create if needed
+        }
+      }
 
       if (!meta.exists) {
         const payload = toFirestoreRoomPayload(targetState, {
@@ -153,8 +172,35 @@ export function useFirestoreRoomSync({
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, roomPath);
+        } catch (createErr) {
+          try {
+            await updateDoc(roomRef, {
+              lastStatsUpdateTime: payload.lastStatsUpdateTime,
+              nicknames: payload.nicknames,
+              loveScore: payload.loveScore,
+              streak: payload.streak,
+              scores: payload.scores,
+              presence: payload.presence,
+              wallets: payload.wallets,
+              inventories: payload.inventories,
+              unlockedItems: payload.unlockedItems,
+              lastRewardDates: payload.lastRewardDates,
+              cat1: payload.cat1,
+              cat2: payload.cat2,
+              letters: payload.letters,
+              onlineRooms: payload.onlineRooms,
+              boardGames: payload.boardGames,
+              skyHopLeaderboard: payload.skyHopLeaderboard,
+              achievements: payload.achievements,
+              achievementStats: payload.achievementStats,
+              galleryOrder: payload.galleryOrder,
+              galleryHashes: payload.galleryHashes,
+              galleryDriveFolder: payload.galleryDriveFolder ?? deleteField(),
+              updatedAt: serverTimestamp(),
+            });
+          } catch {
+            handleFirestoreError(createErr, OperationType.CREATE, roomPath);
+          }
         }
 
         const writtenHashes: Record<string, string> = {};
@@ -167,6 +213,7 @@ export function useFirestoreRoomSync({
               authorUid: user.uid,
               position,
             });
+            const { id: _id, roomId: _roomId, authorUid: _authorUid, ...mutableExPayload } = exPayload;
             try {
               await setDoc(doc(db, 'rooms', roomId, 'gallery', exhibit.id), {
                 ...exPayload,
@@ -176,8 +223,18 @@ export function useFirestoreRoomSync({
               const hash = computeExhibitHash(exhibit, position);
               writtenHashes[exhibit.id] = hash;
               exhibitCacheRef.current.set(exhibit.id, { hash, item: exhibit });
-            } catch (err) {
-              handleFirestoreError(err, OperationType.CREATE, exPath);
+            } catch (createErr) {
+              try {
+                await updateDoc(doc(db, 'rooms', roomId, 'gallery', exhibit.id), {
+                  ...mutableExPayload,
+                  updatedAt: serverTimestamp(),
+                });
+                const hash = computeExhibitHash(exhibit, position);
+                writtenHashes[exhibit.id] = hash;
+                exhibitCacheRef.current.set(exhibit.id, { hash, item: exhibit });
+              } catch {
+                handleFirestoreError(createErr, OperationType.CREATE, exPath);
+              }
             }
           })
         );
@@ -216,6 +273,7 @@ export function useFirestoreRoomSync({
               authorUid: user.uid,
               position,
             });
+            const { id: _id, roomId: _roomId, authorUid: _authorUid, ...mutableExPayload } = exPayload;
             try {
               await setDoc(doc(db, 'rooms', roomId, 'gallery', exhibit.id), {
                 ...exPayload,
@@ -224,8 +282,17 @@ export function useFirestoreRoomSync({
               });
               const hash = computeExhibitHash(exhibit, position);
               exhibitCacheRef.current.set(exhibit.id, { hash, item: exhibit });
-            } catch (err) {
-              handleFirestoreError(err, OperationType.CREATE, exPath);
+            } catch (createErr) {
+              try {
+                await updateDoc(doc(db, 'rooms', roomId, 'gallery', exhibit.id), {
+                  ...mutableExPayload,
+                  updatedAt: serverTimestamp(),
+                });
+                const hash = computeExhibitHash(exhibit, position);
+                exhibitCacheRef.current.set(exhibit.id, { hash, item: exhibit });
+              } catch {
+                handleFirestoreError(createErr, OperationType.CREATE, exPath);
+              }
             }
           })
         );
