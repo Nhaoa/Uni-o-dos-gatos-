@@ -281,11 +281,20 @@ export async function enterRoomStatic(params: {
     if (!validPass) {
       return { ok: false, error: 'Senha da sala incorreta.' };
     }
-  } else if (password.trim()) {
-    if (password.trim().length < 4) {
-      return { ok: false, error: 'A senha da sala deve ter pelo menos 4 caracteres.' };
+  } else {
+    const legacy = await getLegacyRoomCached(roomId);
+    const cleanTyped = password.trim();
+    if (legacy.legacyPlainPassword) {
+      if (cleanTyped !== legacy.legacyPlainPassword) {
+        return { ok: false, error: 'Senha da sala incorreta.' };
+      }
+      effectiveHash = await hashRoomPasswordClient(legacy.legacyPlainPassword);
+    } else if (cleanTyped) {
+      if (cleanTyped.length < 4) {
+        return { ok: false, error: 'A senha da sala deve ter pelo menos 4 caracteres.' };
+      }
+      effectiveHash = await hashRoomPasswordClient(cleanTyped);
     }
-    effectiveHash = await hashRoomPasswordClient(password.trim());
   }
 
   const rawNick = (roomData.nicknames || {}) as Record<string, unknown>;
@@ -332,6 +341,22 @@ export async function enterRoomStatic(params: {
       cat2Uid = nextCat2Uid;
     } else if (!isAdminEmail) {
       return { ok: false, error: 'Esta sala já possui duas contas Google vinculadas.' };
+    }
+  } else if (roleRes.isNewBinding) {
+    const nextCat1Uid = roleRes.role === 'cat1' && !cat1Uid ? firebaseUser.uid : cat1Uid;
+    const nextCat2Uid = roleRes.role === 'cat2' && !cat2Uid ? firebaseUser.uid : cat2Uid;
+    if (nextCat1Uid !== cat1Uid || nextCat2Uid !== cat2Uid) {
+      try {
+        await updateDoc(roomRef, {
+          cat1Uid: nextCat1Uid,
+          cat2Uid: nextCat2Uid,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `rooms/${roomId}`);
+      }
+      cat1Uid = nextCat1Uid;
+      cat2Uid = nextCat2Uid;
     }
   }
 

@@ -25,16 +25,20 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: '22'
 
       - name: Instalar dependências
-        run: npm ci
+        run: npm install --no-audit --no-fund
+
+      - name: Verificar tipos (TypeScript)
+        run: npm run lint
 
       - name: Compilar site estático (GitHub Pages)
         env:
           VITE_STATIC_HOSTING: 'true'
-        run: npm run build
+        run: |
+          npm run build
+          touch ./dist/.nojekyll
 
       - name: Enviar artefato do GitHub Pages
         uses: actions/upload-pages-artifact@v3

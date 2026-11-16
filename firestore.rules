@@ -335,8 +335,10 @@ service cloud.firestore {
           || (
             isRoomMember(existing())
             && incoming().partnerUid == existing().partnerUid
+            && (!('cat1Uid' in existing()) || existing().cat1Uid == '' || incoming().cat1Uid == existing().cat1Uid)
+            && (!('cat2Uid' in existing()) || existing().cat2Uid == '' || incoming().cat2Uid == existing().cat2Uid)
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'roomPasswordHash', 'lastStatsUpdateTime', 'updatedAt', 'nicknames', 'loveScore', 'streak',
+              'cat1Uid', 'cat2Uid', 'roomPasswordHash', 'lastStatsUpdateTime', 'updatedAt', 'nicknames', 'loveScore', 'streak',
               'scores', 'presence', 'wallets', 'inventories', 'unlockedItems',
               'lastRewardDates', 'cat1', 'cat2', 'letters', 'onlineRooms',
               'boardGames', 'skyHopLeaderboard', 'achievements', 'achievementStats',

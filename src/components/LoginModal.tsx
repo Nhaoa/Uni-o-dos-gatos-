@@ -57,6 +57,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       const code = (err as { code?: string })?.code || '';
       if (code === 'auth/popup-closed-by-user') {
         setError('Login com Google cancelado.');
+      } else if (code === 'auth/unauthorized-domain') {
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'seu-dominio.github.io';
+        setError(
+          `Domínio "${host}" ainda não autorizado no Firebase Auth. Adicione-o em Firebase Console → Authentication → Settings → Authorized domains.`
+        );
       } else {
         setError('Não foi possível conectar sua conta Google. Tente novamente.');
       }
