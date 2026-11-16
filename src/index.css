@@ -1,0 +1,276 @@
+@import "tailwindcss";
+
+:root {
+  --charcoal: #2b1111;
+  --amber: #f59e0b;
+  --soviet-red: #b91c1c;
+  --paper: #f7ebd9;
+  --paper-card: #fff8ed;
+}
+
+@layer base {
+  html,
+  body {
+    min-height: 100dvh;
+    background-color: #7f1d1d;
+    background-image:
+      radial-gradient(circle, rgba(251, 191, 36, 0.2) 1.5px, transparent 1.5px),
+      linear-gradient(to right, rgba(251, 191, 36, 0.07) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(251, 191, 36, 0.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: var(--charcoal);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+}
+
+.font-display {
+  font-family: 'Caveat', cursive;
+}
+
+.font-mono-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.sketch-border {
+  border: 2.5px solid var(--charcoal);
+  box-shadow: 3px 4px 0 rgba(43, 17, 17, 0.92);
+}
+
+.sketch-btn {
+  border: 2px solid var(--charcoal);
+  box-shadow: 2px 3px 0 rgba(43, 17, 17, 0.95);
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.14s ease, background-color 0.15s ease;
+}
+
+.sketch-btn:hover:not(:disabled) {
+  transform: translate(-0.5px, -1px);
+}
+
+.sketch-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 0 1px 0 rgba(43, 17, 17, 0.95);
+}
+
+.sketch-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.stall-canopy {
+  background: repeating-linear-gradient(
+    -45deg,
+    #b91c1c,
+    #b91c1c 16px,
+    #fbbf24 16px,
+    #fbbf24 32px
+  );
+  border-bottom: 3px solid var(--charcoal);
+}
+
+.cat-drop-target.drag-over {
+  transform: scale(1.04);
+  filter: drop-shadow(0 0 12px rgba(220, 38, 38, 0.75));
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: #b91c1c;
+  border-radius: 8px;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025, 0.98); }
+}
+
+@keyframes tailWag {
+  0% { transform: rotate(-6deg); }
+  50% { transform: rotate(5deg); }
+  100% { transform: rotate(-8deg); }
+}
+
+@keyframes naturalBlink {
+  0%, 94%, 98%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.08); }
+}
+
+@keyframes idlePurr {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.03); }
+}
+
+.anim-body {
+  animation: breathe 3.6s ease-in-out infinite;
+  transform-origin: 100px 145px;
+}
+
+.anim-tail {
+  animation: tailWag 3.2s ease-in-out infinite alternate;
+  transform-origin: 135px 150px;
+}
+
+.anim-blink {
+  animation: naturalBlink 4.2s infinite;
+  transform-origin: 95px 95px;
+}
+
+.anim-idle {
+  animation: idlePurr 2.8s ease-in-out infinite;
+}
+
+@keyframes cardPop {
+  0% { transform: scale(0.94); opacity: 0.65; }
+  65% { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes coinFloat {
+  0% { transform: translateY(6px) scale(0.9); opacity: 0; }
+  20% { transform: translateY(0px) scale(1.05); opacity: 1; }
+  80% { transform: translateY(-20px) scale(1); opacity: 1; }
+  100% { transform: translateY(-30px) scale(0.95); opacity: 0; }
+}
+
+@keyframes wordleFlip {
+  0% { transform: rotateX(0deg) scale(1); }
+  45% { transform: rotateX(85deg) scale(1.04); }
+  55% { transform: rotateX(85deg) scale(1.04); }
+  100% { transform: rotateX(0deg) scale(1); }
+}
+
+@keyframes tileShake {
+  0%, 100% { transform: translateX(0); }
+  18% { transform: translateX(-6px); }
+  36% { transform: translateX(6px); }
+  54% { transform: translateX(-5px); }
+  72% { transform: translateX(4px); }
+}
+
+@keyframes shimmerSweep {
+  0% { transform: translateX(-110%); opacity: 0; }
+  35% { opacity: 0.35; }
+  100% { transform: translateX(110%); opacity: 0; }
+}
+
+@keyframes solitaireCascade {
+  0% { transform: translateY(-14px) scale(0.95) rotate(-4deg); opacity: 0; }
+  60% { transform: translateY(3px) scale(1.02) rotate(1deg); opacity: 1; }
+  100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes achievementCardJump {
+  0% { transform: translateY(0) scale(0.94); }
+  18% { transform: translateY(-18px) scale(1.04) rotate(-1.2deg); }
+  36% { transform: translateY(2px) scale(0.985) rotate(0.8deg); }
+  54% { transform: translateY(-11px) scale(1.025) rotate(-0.5deg); }
+  72% { transform: translateY(1px) scale(0.995) rotate(0.2deg); }
+  86% { transform: translateY(-4px) scale(1.01); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+@keyframes emblemHop {
+  0% { transform: translateY(0) scale(0.9) rotate(0deg); }
+  22% { transform: translateY(-12px) scale(1.18) rotate(-8deg); }
+  45% { transform: translateY(0) scale(0.96) rotate(5deg); }
+  68% { transform: translateY(-7px) scale(1.1) rotate(-3deg); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+@keyframes mealPulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes sleepZFloat {
+  0% { transform: translate(0, 6px) scale(0.75); opacity: 0; }
+  25% { opacity: 0.95; }
+  75% { opacity: 0.85; }
+  100% { transform: translate(8px, -16px) scale(1.1); opacity: 0; }
+}
+
+.anim-card-pop {
+  animation: cardPop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.anim-coin-float {
+  animation: coinFloat 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.anim-wordle-flip {
+  animation: wordleFlip 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-tile-shake {
+  animation: tileShake 0.38s ease-in-out;
+}
+
+.anim-meal-pulse {
+  animation: mealPulse 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.anim-solitaire-cascade {
+  animation: solitaireCascade 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-achievement-jump {
+  animation: achievementCardJump 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-emblem-hop {
+  animation: emblemHop 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+
+.anim-sleep-z-1 {
+  animation: sleepZFloat 2.6s ease-out infinite;
+}
+
+.anim-sleep-z-2 {
+  animation: sleepZFloat 2.6s ease-out 0.85s infinite;
+}
+
+.anim-sleep-z-3 {
+  animation: sleepZFloat 2.6s ease-out 1.7s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-body,
+  .anim-tail,
+  .anim-blink,
+  .anim-idle,
+  .anim-card-pop,
+  .anim-coin-float,
+  .anim-wordle-flip,
+  .anim-tile-shake,
+  .anim-meal-pulse,
+  .anim-solitaire-cascade,
+  .anim-achievement-jump,
+  .anim-emblem-hop,
+  .anim-sleep-z-1,
+  .anim-sleep-z-2,
+  .anim-sleep-z-3 {
+    animation: none;
+  }
+}
+
+/* Orientation-aware helpers for compact landscape viewports (phones/tablets sideways) */
+@media (orientation: landscape) and (max-height: 520px) {
+  .landscape-compact-hide {
+    display: none !important;
+  }
+  .landscape-compact-pad {
+    padding: 0.45rem !important;
+  }
+}

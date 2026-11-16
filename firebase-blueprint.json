@@ -1,0 +1,355 @@
+{
+  "entities": {
+    "RoomSnapshot": {
+      "title": "RoomSnapshot",
+      "description": "Shared synchronized state of the couple's room across Preview and Published environments, storing all gameplay state except large gallery exhibit payloads.",
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique room identifier."
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the primary room owner."
+        },
+        "partnerUid": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the partner (empty string until claimed)."
+        },
+        "cat1Uid": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 128,
+          "description": "Optional Firebase Auth UID bound to the cat1 role."
+        },
+        "cat2Uid": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 128,
+          "description": "Optional Firebase Auth UID bound to the cat2 role."
+        },
+        "roomPasswordHash": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 160,
+          "description": "Optional salted SHA-256 room access hash for serverless GitHub Pages authentication."
+        },
+        "lastStatsUpdateTime": {
+          "type": "number",
+          "description": "Monotonic millisecond timestamp of the latest state mutation used for newest-wins reconciliation."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the room document was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the room document was last updated."
+        },
+        "nicknames": {
+          "type": "object",
+          "description": "Player nicknames map for cat1 and cat2 (max 18 chars each)."
+        },
+        "loveScore": {
+          "type": "number",
+          "description": "Couple love meter value between 0 and 100."
+        },
+        "streak": {
+          "type": "object",
+          "description": "Daily check-in streak counters (current, best, totalDays)."
+        },
+        "scores": {
+          "type": "object",
+          "description": "Cumulative couple minigame scoreboard (cat1Wins, cat2Wins, ties)."
+        },
+        "presence": {
+          "type": "object",
+          "description": "Daily presence sync status (syncedToday, lastSyncedDate)."
+        },
+        "wallets": {
+          "type": "object",
+          "description": "Currency balances (fish, paws, coupleCoins) for cat1 and cat2."
+        },
+        "inventories": {
+          "type": "object",
+          "description": "Food/item inventory counts for cat1 and cat2."
+        },
+        "unlockedItems": {
+          "type": "object",
+          "description": "Arrays of unlocked cosmetic item IDs per role (max 200 per role)."
+        },
+        "lastRewardDates": {
+          "type": "object",
+          "description": "Last daily fish claim date string per role."
+        },
+        "cat1": {
+          "type": "object",
+          "description": "Cat 1 appearance and vital stats."
+        },
+        "cat2": {
+          "type": "object",
+          "description": "Cat 2 appearance and vital stats."
+        },
+        "letters": {
+          "type": "array",
+          "description": "Up to 80 recent radio telegram messages."
+        },
+        "onlineRooms": {
+          "type": "object",
+          "description": "Online multiplayer room states (jokenpo, reaction, tictactoe, airhockey, sudoku)."
+        },
+        "boardGames": {
+          "type": "object",
+          "description": "Chess and checkers match states with row-mapped boards (no nested arrays)."
+        },
+        "skyHopLeaderboard": {
+          "type": "array",
+          "description": "Top 10 SkyHop high-score records."
+        },
+        "achievements": {
+          "type": "object",
+          "description": "Unlocked achievement timestamp maps for cat1 and cat2."
+        },
+        "achievementStats": {
+          "type": "object",
+          "description": "Cumulative achievement progress counters for cat1 and cat2."
+        },
+        "galleryOrder": {
+          "type": "array",
+          "description": "Ordered list of up to 60 gallery exhibit document IDs."
+        },
+        "galleryHashes": {
+          "type": "object",
+          "description": "Map of exhibitId -> deterministic content fingerprint for incremental fetching."
+        },
+        "galleryDriveFolder": {
+          "type": "object",
+          "description": "Optional linked Google Drive folder metadata for museum media sync."
+        }
+      },
+      "required": [
+        "roomId",
+        "ownerUid",
+        "partnerUid",
+        "lastStatsUpdateTime",
+        "createdAt",
+        "updatedAt",
+        "nicknames",
+        "loveScore",
+        "streak",
+        "scores",
+        "presence",
+        "wallets",
+        "inventories",
+        "unlockedItems",
+        "lastRewardDates",
+        "cat1",
+        "cat2",
+        "letters",
+        "onlineRooms",
+        "boardGames",
+        "skyHopLeaderboard",
+        "achievements",
+        "achievementStats",
+        "galleryOrder",
+        "galleryHashes"
+      ]
+    },
+    "GalleryExhibitDoc": {
+      "title": "GalleryExhibitDoc",
+      "description": "Individual museum/gallery exhibit stored in a subcollection so image data URLs stay well below Firestore's 1MB document limit.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Exhibit ID matching document path ID."
+        },
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Parent room ID."
+        },
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the exhibit creator."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["site", "image", "video"],
+          "description": "Exhibit category."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "description": "Exhibit title shown on museum plaque."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 420,
+          "description": "Exhibit description or dedication."
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Optional external site URL for site exhibits."
+        },
+        "imageUrl": {
+          "type": "string",
+          "maxLength": 500000,
+          "description": "Optional compressed image data URL or URL (<= 500KB)."
+        },
+        "videoUrl": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Optional external or Drive video URL."
+        },
+        "driveFileId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Optional Google Drive file ID."
+        },
+        "driveFolderId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Optional Google Drive folder ID."
+        },
+        "mimeType": {
+          "type": "string",
+          "maxLength": 96,
+          "description": "Optional MIME type."
+        },
+        "fileSizeBytes": {
+          "type": "number",
+          "description": "Optional media file size in bytes."
+        },
+        "storage": {
+          "type": "string",
+          "enum": ["drive", "url", "inline"],
+          "description": "Optional media storage backend."
+        },
+        "frameStyle": {
+          "type": "string",
+          "enum": ["gold", "oak", "modern", "crimson"],
+          "description": "Museum frame style."
+        },
+        "addedBy": {
+          "type": "string",
+          "enum": ["cat1", "cat2"],
+          "description": "Couple role that added the exhibit."
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Curator display name."
+        },
+        "occasionDate": {
+          "type": "string",
+          "maxLength": 24,
+          "description": "Optional commemorative date label."
+        },
+        "position": {
+          "type": "number",
+          "description": "Zero-based museum wing ordering index."
+        },
+        "exhibitCreatedAt": {
+          "type": "number",
+          "description": "Client creation epoch milliseconds."
+        },
+        "isStarter": {
+          "type": "boolean",
+          "description": "Whether this exhibit came from initial museum curation."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on latest update."
+        }
+      },
+      "required": [
+        "id",
+        "roomId",
+        "authorUid",
+        "kind",
+        "title",
+        "description",
+        "frameStyle",
+        "addedBy",
+        "authorName",
+        "position",
+        "exhibitCreatedAt",
+        "isStarter",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Server-provisioned admin role marker document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": {
+        "$ref": "#/entities/RoomSnapshot"
+      },
+      "description": "Shared synchronized room state per couple room."
+    },
+    "/rooms/{roomId}/gallery/{exhibitId}": {
+      "schema": {
+        "$ref": "#/entities/GalleryExhibitDoc"
+      },
+      "description": "Museum gallery exhibits subcollection belonging to a room."
+    },
+    "/admins/{userId}": {
+      "schema": {
+        "$ref": "#/entities/AdminMarker"
+      },
+      "description": "Read-only admin membership markers."
+    }
+  }
+}

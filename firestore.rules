@@ -1,0 +1,395 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string
+        && id.size() >= 1
+        && id.size() <= 128
+        && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'advbneto29@gmail.com'
+        || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isRoomMember(roomData) {
+      return isSignedIn() && (
+        roomData.ownerUid == request.auth.uid
+        || roomData.partnerUid == request.auth.uid
+      );
+    }
+
+    function isParentRoomMember(roomId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/rooms/$(roomId))
+        && (
+          isAdmin()
+          || get(/databases/$(database)/documents/rooms/$(roomId)).data.ownerUid == request.auth.uid
+          || get(/databases/$(database)/documents/rooms/$(roomId)).data.partnerUid == request.auth.uid
+        );
+    }
+
+    function isValidWallet(w) {
+      return w is map
+        && w.keys().hasAll(['fish', 'paws', 'coupleCoins'])
+        && w.keys().hasOnly(['fish', 'paws', 'coupleCoins'])
+        && w.fish is number && w.fish >= 0 && w.fish <= 10000000
+        && w.paws is number && w.paws >= 0 && w.paws <= 10000000
+        && w.coupleCoins is number && w.coupleCoins >= 0 && w.coupleCoins <= 10000000;
+    }
+
+    function isValidCatIdentity(cat) {
+      return cat is map
+        && cat.keys().hasAll([
+          'breed', 'outfit', 'outfitColor', 'accessory', 'accessoryColor',
+          'expression', 'eyeShape', 'eyeColor', 'pupil', 'pupilColor',
+          'mouth', 'hunger', 'energy', 'happiness', 'speech'
+        ])
+        && cat.keys().hasOnly([
+          'breed', 'outfit', 'outfitColor', 'accessory', 'accessoryColor',
+          'expression', 'eyeShape', 'eyeColor', 'pupil', 'pupilColor',
+          'mouth', 'bed', 'bedColor', 'isSleeping',
+          'hunger', 'energy', 'happiness', 'speech'
+        ])
+        && cat.breed is string && cat.breed.size() >= 1 && cat.breed.size() <= 32
+        && cat.outfit is string && cat.outfit.size() >= 1 && cat.outfit.size() <= 40
+        && cat.outfitColor is string && cat.outfitColor.size() >= 1 && cat.outfitColor.size() <= 16
+        && cat.accessory is string && cat.accessory.size() >= 1 && cat.accessory.size() <= 40
+        && cat.accessoryColor is string && cat.accessoryColor.size() >= 1 && cat.accessoryColor.size() <= 16
+        && (!('bed' in cat) || (cat.bed is string && cat.bed.size() >= 1 && cat.bed.size() <= 24))
+        && (!('bedColor' in cat) || (cat.bedColor is string && cat.bedColor.size() >= 1 && cat.bedColor.size() <= 16))
+        && (!('isSleeping' in cat) || cat.isSleeping is bool);
+    }
+
+    function isValidCatVitals(cat) {
+      return cat.expression in ['happy', 'pet', 'normal']
+        && cat.eyeShape is string && cat.eyeShape.size() >= 1 && cat.eyeShape.size() <= 24
+        && cat.eyeColor is string && cat.eyeColor.size() >= 1 && cat.eyeColor.size() <= 16
+        && cat.pupil is string && cat.pupil.size() >= 1 && cat.pupil.size() <= 24
+        && cat.pupilColor is string && cat.pupilColor.size() >= 1 && cat.pupilColor.size() <= 16
+        && cat.mouth is string && cat.mouth.size() >= 1 && cat.mouth.size() <= 24
+        && cat.hunger is number && cat.hunger >= 0 && cat.hunger <= 100
+        && cat.energy is number && cat.energy >= 0 && cat.energy <= 100
+        && cat.happiness is number && cat.happiness >= 0 && cat.happiness <= 100
+        && cat.speech is string && cat.speech.size() <= 160;
+    }
+
+    function isValidCat(cat) {
+      return isValidCatIdentity(cat) && isValidCatVitals(cat);
+    }
+
+    function isValidStringList(arr, maxLen) {
+      return arr is list
+        && arr.size() <= maxLen
+        && (arr.size() == 0 || (arr[0] is string && arr[0].size() <= 128));
+    }
+
+    function isValidRoomKeys(data) {
+      return data.keys().hasAll([
+          'roomId', 'ownerUid', 'partnerUid', 'lastStatsUpdateTime', 'createdAt', 'updatedAt',
+          'nicknames', 'loveScore', 'streak', 'scores', 'presence', 'wallets', 'inventories',
+          'unlockedItems', 'lastRewardDates', 'cat1', 'cat2', 'letters', 'onlineRooms',
+          'boardGames', 'skyHopLeaderboard', 'achievements', 'achievementStats',
+          'galleryOrder', 'galleryHashes'
+        ])
+        && data.keys().hasOnly([
+          'roomId', 'ownerUid', 'partnerUid', 'cat1Uid', 'cat2Uid', 'roomPasswordHash',
+          'lastStatsUpdateTime', 'createdAt', 'updatedAt',
+          'nicknames', 'loveScore', 'streak', 'scores', 'presence', 'wallets', 'inventories',
+          'unlockedItems', 'lastRewardDates', 'cat1', 'cat2', 'letters', 'onlineRooms',
+          'boardGames', 'skyHopLeaderboard', 'achievements', 'achievementStats',
+          'galleryOrder', 'galleryHashes', 'galleryDriveFolder'
+        ]);
+    }
+
+    function isValidRoomMeta(data) {
+      return data.roomId is string
+        && data.roomId.size() >= 1
+        && data.roomId.size() <= 64
+        && data.roomId.matches('^[a-zA-Z0-9_-]+$')
+        && isValidId(data.ownerUid)
+        && data.partnerUid is string
+        && data.partnerUid.size() <= 128
+        && (data.partnerUid == '' || isValidId(data.partnerUid))
+        && (!('cat1Uid' in data) || (data.cat1Uid is string && data.cat1Uid.size() <= 128 && (data.cat1Uid == '' || isValidId(data.cat1Uid))))
+        && (!('cat2Uid' in data) || (data.cat2Uid is string && data.cat2Uid.size() <= 128 && (data.cat2Uid == '' || isValidId(data.cat2Uid))))
+        && (!('roomPasswordHash' in data) || (data.roomPasswordHash is string && data.roomPasswordHash.size() <= 160))
+        && (!('galleryDriveFolder' in data) || data.galleryDriveFolder == null || (data.galleryDriveFolder is map && data.galleryDriveFolder.keys().size() <= 10))
+        && data.lastStatsUpdateTime is number
+        && data.lastStatsUpdateTime >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoomSocial(data) {
+      return data.nicknames is map
+        && data.nicknames.keys().hasAll(['cat1', 'cat2'])
+        && data.nicknames.keys().hasOnly(['cat1', 'cat2'])
+        && data.nicknames.cat1 is string && data.nicknames.cat1.size() >= 1 && data.nicknames.cat1.size() <= 18
+        && data.nicknames.cat2 is string && data.nicknames.cat2.size() >= 1 && data.nicknames.cat2.size() <= 18
+        && data.loveScore is number && data.loveScore >= 0 && data.loveScore <= 100
+        && data.streak is map
+        && data.streak.keys().hasAll(['current', 'best', 'totalDays'])
+        && data.streak.keys().hasOnly(['current', 'best', 'totalDays'])
+        && data.streak.current is number && data.streak.current >= 0
+        && data.streak.best is number && data.streak.best >= 0
+        && data.streak.totalDays is number && data.streak.totalDays >= 0;
+    }
+
+    function isValidRoomPresenceAndScores(data) {
+      return data.scores is map
+        && data.scores.keys().hasAll(['cat1Wins', 'cat2Wins', 'ties'])
+        && data.scores.keys().hasOnly(['cat1Wins', 'cat2Wins', 'ties'])
+        && data.scores.cat1Wins is number && data.scores.cat1Wins >= 0
+        && data.scores.cat2Wins is number && data.scores.cat2Wins >= 0
+        && data.scores.ties is number && data.scores.ties >= 0
+        && data.presence is map
+        && data.presence.keys().hasAll(['syncedToday', 'lastSyncedDate'])
+        && data.presence.keys().hasOnly(['syncedToday', 'lastSyncedDate'])
+        && data.presence.syncedToday is bool
+        && data.presence.lastSyncedDate is string && data.presence.lastSyncedDate.size() <= 24;
+    }
+
+    function isValidRoomEconomy(data) {
+      return data.wallets is map
+        && data.wallets.keys().hasAll(['cat1', 'cat2'])
+        && data.wallets.keys().hasOnly(['cat1', 'cat2'])
+        && isValidWallet(data.wallets.cat1)
+        && isValidWallet(data.wallets.cat2)
+        && data.inventories is map
+        && data.inventories.keys().hasAll(['cat1', 'cat2'])
+        && data.inventories.keys().hasOnly(['cat1', 'cat2'])
+        && data.inventories.cat1 is map && data.inventories.cat1.keys().size() <= 50
+        && data.inventories.cat2 is map && data.inventories.cat2.keys().size() <= 50
+        && data.unlockedItems is map
+        && data.unlockedItems.keys().hasAll(['cat1', 'cat2'])
+        && data.unlockedItems.keys().hasOnly(['cat1', 'cat2'])
+        && isValidStringList(data.unlockedItems.cat1, 200)
+        && isValidStringList(data.unlockedItems.cat2, 200)
+        && data.lastRewardDates is map
+        && data.lastRewardDates.keys().hasAll(['cat1', 'cat2'])
+        && data.lastRewardDates.keys().hasOnly(['cat1', 'cat2'])
+        && data.lastRewardDates.cat1 is string && data.lastRewardDates.cat1.size() <= 24
+        && data.lastRewardDates.cat2 is string && data.lastRewardDates.cat2.size() <= 24;
+    }
+
+    function isValidRoomGameplay(data) {
+      return isValidCat(data.cat1)
+        && isValidCat(data.cat2)
+        && data.letters is list && data.letters.size() <= 80
+        && (data.letters.size() == 0 || data.letters[0] is map)
+        && data.onlineRooms is map
+        && data.onlineRooms.keys().hasAll(['jokenpo', 'reaction', 'tictactoe', 'airhockey', 'sudoku'])
+        && data.onlineRooms.keys().hasOnly(['jokenpo', 'reaction', 'tictactoe', 'airhockey', 'sudoku'])
+        && data.boardGames is map
+        && data.boardGames.keys().hasAll(['chess', 'checkers'])
+        && data.boardGames.keys().hasOnly(['chess', 'checkers'])
+        && data.skyHopLeaderboard is list && data.skyHopLeaderboard.size() <= 10
+        && (data.skyHopLeaderboard.size() == 0 || data.skyHopLeaderboard[0] is map);
+    }
+
+    function isValidRoomProgress(data) {
+      return data.achievements is map
+        && data.achievements.keys().hasAll(['cat1', 'cat2'])
+        && data.achievements.keys().hasOnly(['cat1', 'cat2'])
+        && data.achievements.cat1 is map && data.achievements.cat1.keys().size() <= 100
+        && data.achievements.cat2 is map && data.achievements.cat2.keys().size() <= 100
+        && data.achievementStats is map
+        && data.achievementStats.keys().hasAll(['cat1', 'cat2'])
+        && data.achievementStats.keys().hasOnly(['cat1', 'cat2'])
+        && data.achievementStats.cat1 is map && data.achievementStats.cat1.keys().size() <= 60
+        && data.achievementStats.cat2 is map && data.achievementStats.cat2.keys().size() <= 60
+        && isValidStringList(data.galleryOrder, 60)
+        && data.galleryHashes is map && data.galleryHashes.keys().size() <= 60;
+    }
+
+    function isValidRoomSnapshot(data) {
+      return isValidRoomKeys(data)
+        && isValidRoomMeta(data)
+        && isValidRoomSocial(data)
+        && isValidRoomPresenceAndScores(data)
+        && isValidRoomEconomy(data)
+        && isValidRoomGameplay(data)
+        && isValidRoomProgress(data);
+    }
+
+    function isValidGalleryExhibitKeys(data) {
+      return data.keys().hasAll([
+          'id', 'roomId', 'authorUid', 'kind', 'title', 'description',
+          'frameStyle', 'addedBy', 'authorName', 'position',
+          'exhibitCreatedAt', 'isStarter', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'roomId', 'authorUid', 'kind', 'title', 'description',
+          'url', 'imageUrl', 'videoUrl', 'driveFileId', 'driveFolderId',
+          'mimeType', 'fileSizeBytes', 'storage', 'frameStyle', 'addedBy',
+          'authorName', 'occasionDate', 'position', 'exhibitCreatedAt',
+          'isStarter', 'createdAt', 'updatedAt'
+        ]);
+    }
+
+    function isValidGalleryExhibitFields(data) {
+      return isValidId(data.id)
+        && data.roomId is string && data.roomId.size() >= 1 && data.roomId.size() <= 64
+        && data.roomId.matches('^[a-zA-Z0-9_-]+$')
+        && isValidId(data.authorUid)
+        && data.kind in ['site', 'image', 'video']
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 80
+        && data.description is string && data.description.size() >= 3 && data.description.size() <= 420
+        && (!('url' in data) || (data.url is string && data.url.size() <= 2000))
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 500000))
+        && (!('videoUrl' in data) || (data.videoUrl is string && data.videoUrl.size() <= 2000))
+        && (!('driveFileId' in data) || (data.driveFileId is string && data.driveFileId.size() <= 128))
+        && (!('driveFolderId' in data) || (data.driveFolderId is string && data.driveFolderId.size() <= 128))
+        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 96))
+        && (!('fileSizeBytes' in data) || (data.fileSizeBytes is number && data.fileSizeBytes >= 0))
+        && (!('storage' in data) || data.storage in ['drive', 'url', 'inline'])
+        && data.frameStyle in ['gold', 'oak', 'modern', 'crimson']
+        && data.addedBy in ['cat1', 'cat2']
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 32
+        && (!('occasionDate' in data) || (data.occasionDate is string && data.occasionDate.size() <= 24))
+        && data.position is number && data.position >= 0 && data.position <= 60
+        && data.exhibitCreatedAt is number && data.exhibitCreatedAt >= 0
+        && data.isStarter is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidGalleryExhibit(data) {
+      return isValidGalleryExhibitKeys(data) && isValidGalleryExhibitFields(data);
+    }
+
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if false;
+      allow write: if false;
+    }
+
+    match /rooms/{roomId} {
+      allow get: if isSignedIn()
+        && isValidId(roomId)
+        && (
+          isAdmin()
+          || resource == null
+          || isRoomMember(existing())
+          || existing().partnerUid == ''
+        );
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && isValidId(roomId)
+        && isValidRoomSnapshot(incoming())
+        && incoming().roomId == roomId
+        && incoming().ownerUid == request.auth.uid
+        && incoming().partnerUid == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(roomId)
+        && isValidRoomSnapshot(incoming())
+        && incoming().roomId == existing().roomId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'partnerUid', 'cat1Uid', 'cat2Uid', 'roomPasswordHash',
+            'lastStatsUpdateTime', 'updatedAt', 'nicknames',
+            'loveScore', 'streak', 'scores', 'presence', 'wallets', 'inventories',
+            'unlockedItems', 'lastRewardDates', 'cat1', 'cat2', 'letters',
+            'onlineRooms', 'boardGames', 'skyHopLeaderboard', 'achievements',
+            'achievementStats', 'galleryOrder', 'galleryHashes', 'galleryDriveFolder'
+          ]))
+          || (
+            existing().partnerUid == ''
+            && incoming().partnerUid == request.auth.uid
+            && (
+              incoming().diff(existing()).affectedKeys().hasOnly(['partnerUid', 'updatedAt'])
+              || (
+                incoming().diff(existing()).affectedKeys().hasOnly(['partnerUid', 'cat1Uid', 'cat2Uid', 'updatedAt'])
+                && (!('cat1Uid' in existing()) || existing().cat1Uid == '' || incoming().cat1Uid == existing().cat1Uid)
+                && (!('cat2Uid' in existing()) || existing().cat2Uid == '' || incoming().cat2Uid == existing().cat2Uid)
+              )
+            )
+          )
+          || (
+            isRoomMember(existing())
+            && incoming().partnerUid == existing().partnerUid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'roomPasswordHash', 'lastStatsUpdateTime', 'updatedAt', 'nicknames', 'loveScore', 'streak',
+              'scores', 'presence', 'wallets', 'inventories', 'unlockedItems',
+              'lastRewardDates', 'cat1', 'cat2', 'letters', 'onlineRooms',
+              'boardGames', 'skyHopLeaderboard', 'achievements', 'achievementStats',
+              'galleryOrder', 'galleryHashes', 'galleryDriveFolder'
+            ])
+          )
+        );
+
+      allow delete: if false;
+
+      match /gallery/{exhibitId} {
+        allow get: if isSignedIn()
+          && isValidId(roomId)
+          && isValidId(exhibitId)
+          && isParentRoomMember(roomId);
+        allow list: if false;
+
+        allow create: if isSignedIn()
+          && isValidId(roomId)
+          && isValidId(exhibitId)
+          && isValidGalleryExhibit(incoming())
+          && incoming().id == exhibitId
+          && incoming().roomId == roomId
+          && incoming().authorUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && isParentRoomMember(roomId);
+
+        allow update: if isSignedIn()
+          && isValidId(roomId)
+          && isValidId(exhibitId)
+          && isValidGalleryExhibit(incoming())
+          && incoming().id == existing().id
+          && incoming().roomId == existing().roomId
+          && incoming().authorUid == existing().authorUid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && isParentRoomMember(roomId)
+          && (
+            isAdmin()
+            || incoming().diff(existing()).affectedKeys().hasOnly([
+              'kind', 'title', 'description', 'url', 'imageUrl', 'videoUrl',
+              'driveFileId', 'driveFolderId', 'mimeType', 'fileSizeBytes',
+              'storage', 'frameStyle', 'addedBy', 'authorName', 'occasionDate',
+              'position', 'isStarter', 'updatedAt'
+            ])
+          );
+
+        allow delete: if isSignedIn()
+          && isValidId(roomId)
+          && isValidId(exhibitId)
+          && isParentRoomMember(roomId);
+      }
+    }
+  }
+}

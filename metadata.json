@@ -1,0 +1,6 @@
+{
+  "name": "União dos Camaradas Felinos",
+  "description": "Jardim interativo cooperativo para casais com dois gatinhos personalizáveis, economia compartilhada, chat ao vivo e minigames (Xadrez, Damas, Air Hockey, Jokenpô, Jogo da Velha, Pata Rápida e Pula-Pula Sputnik).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
