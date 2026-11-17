@@ -145,10 +145,12 @@ export async function fetchLegacyFirestoreRoom(
   roomId: string
 ): Promise<{ state: SharedState; passwordHash: string; migrated: boolean }> {
   const def = createDefaultSharedState();
+  const legacyRoomKey =
+    roomId === 'ninho_de_amor_preview' ? 'ninho_de_amor_fixo' : roomId;
 
   try {
     const url = `https://firestore.googleapis.com/v1/projects/jardim-gatos-teste/databases/(default)/documents/artifacts/jardim-dos-gatos-casal/public/data/rooms/${encodeURIComponent(
-      roomId
+      legacyRoomKey
     )}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -295,10 +297,6 @@ export async function getOrSeedRoom(roomId: string): Promise<{
     if (decayed.changed) {
       updatedAtMs = fallbackDb.saveRoomState(roomId, decayed.state).updatedAtMs;
     }
-    decayed.state.lastStatsUpdateTime = Math.max(
-      decayed.state.lastStatsUpdateTime || 0,
-      updatedAtMs
-    );
     return {
       state: decayed.state,
       hasPassword: Boolean(existing.passwordHash),

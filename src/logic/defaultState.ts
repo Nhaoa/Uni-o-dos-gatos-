@@ -103,7 +103,7 @@ export function createDefaultSharedState(): SharedState {
       cat2: [...DEFAULT_UNLOCKED_ITEMS],
     },
     lastRewardDates: { cat1: '', cat2: '' },
-    lastStatsUpdateTime: Date.now(),
+    lastStatsUpdateTime: 0,
     cat1: {
       breed: 'white',
       outfit: 'none',

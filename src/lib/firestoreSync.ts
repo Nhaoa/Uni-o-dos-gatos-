@@ -421,6 +421,7 @@ export function useFirestoreRoomSync({
       async (snap) => {
         if (snap.metadata.hasPendingWrites) return;
         if (snap.metadata.fromCache && !snap.exists()) return;
+        const isFirstSnapshot = !snapshotBootstrappedRef.current;
         snapshotBootstrappedRef.current = true;
 
         if (!snap.exists()) {
@@ -466,8 +467,11 @@ export function useFirestoreRoomSync({
 
         const localTs = stateRef.current.lastStatsUpdateTime || 0;
 
-        if (shouldAcceptRemoteSnapshot(remoteTs, localTs, lastHandledTsRef.current)) {
-          lastHandledTsRef.current = remoteTs;
+        if (
+          isFirstSnapshot ||
+          shouldAcceptRemoteSnapshot(remoteTs, localTs, lastHandledTsRef.current)
+        ) {
+          lastHandledTsRef.current = Math.max(remoteTs, localTs);
           syncingDownRef.current = true;
           try {
             const order = Array.isArray(data.galleryOrder)
@@ -517,6 +521,7 @@ export function useFirestoreRoomSync({
         }
 
         if (
+          !isFirstSnapshot &&
           localTs > remoteTs &&
           (ownerUid === firebaseUser.uid ||
             partnerUid === firebaseUser.uid ||

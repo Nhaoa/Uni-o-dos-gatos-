@@ -16,6 +16,7 @@ interface AdminFishModalProps {
   onSaveHack?: (
     payload: AdminFullHackPayload
   ) => Promise<{ ok: boolean; error?: string }>;
+  onRestoreLegacyBackup?: () => Promise<{ ok: boolean; error?: string }>;
   onSaveFish?: (
     targetRole: PlayerRole,
     amount: number
@@ -29,6 +30,7 @@ export const AdminFishModal: React.FC<AdminFishModalProps> = ({
   state,
   onClose,
   onSaveHack,
+  onRestoreLegacyBackup,
   onSaveFish,
 }) => {
   const [activeTab, setActiveTab] = useState<HackTab>('casal');
@@ -36,6 +38,7 @@ export const AdminFishModal: React.FC<AdminFishModalProps> = ({
     extractAdminHackDraft(state)
   );
   const [saving, setSaving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -139,6 +142,19 @@ export const AdminFishModal: React.FC<AdminFishModalProps> = ({
       onClose();
     } else {
       setError(result.error || 'Não foi possível aplicar o Hack do Admin.');
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!onRestoreLegacyBackup) return;
+    setRestoring(true);
+    setError('');
+    const res = await onRestoreLegacyBackup();
+    setRestoring(false);
+    if (res.ok) {
+      onClose();
+    } else {
+      setError(res.error || 'Não foi possível restaurar o backup original.');
     }
   };
 
@@ -383,6 +399,28 @@ export const AdminFishModal: React.FC<AdminFishModalProps> = ({
             <X className="w-4 h-4 text-[#2b1111]" />
           </button>
         </div>
+
+        {/* One-Click Original Backup Recovery Banner */}
+        {onRestoreLegacyBackup && (
+          <div className="bg-emerald-50 border-2 border-emerald-700/40 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-emerald-950">
+                🔄 Recuperar Dados Originais do Casal (Backup Completo)
+              </p>
+              <p className="text-[11px] text-emerald-900/80">
+                Restaura os 30 dias seguidos, as 47 cartas, roupas/visuais de Admin & Amy, itens desbloqueados e moedas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRestoreBackup}
+              disabled={restoring || saving}
+              className="sketch-btn bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold px-3.5 py-2 rounded-xl cursor-pointer whitespace-nowrap"
+            >
+              {restoring ? 'Restaurando...' : 'Restaurar Backup Agora'}
+            </button>
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <div className="grid grid-cols-3 gap-2 shrink-0">

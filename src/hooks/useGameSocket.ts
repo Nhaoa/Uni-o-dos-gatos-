@@ -10,7 +10,23 @@ import {
 } from '../lib/staticRoomService';
 import { AirHockeyOnlineState, PlayerRole, SharedState } from '../types/game';
 
-export const DEFAULT_ROOM_ID = 'ninho_de_amor_fixo';
+export const PRODUCTION_ROOM_ID = 'ninho_de_amor_fixo';
+export const PREVIEW_ROOM_ID = 'ninho_de_amor_preview';
+
+export function isPreviewEnvironment(): boolean {
+  if (typeof window === 'undefined') return true;
+  const host = window.location.hostname.toLowerCase();
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host.endsWith('.run.app') ||
+    host.endsWith('.googleusercontent.com')
+  );
+}
+
+export const DEFAULT_ROOM_ID = isPreviewEnvironment()
+  ? PREVIEW_ROOM_ID
+  : PRODUCTION_ROOM_ID;
 
 interface UseGameSocketOptions {
   myRole: PlayerRole;

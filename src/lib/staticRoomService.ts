@@ -400,12 +400,131 @@ export async function enterRoomStatic(params: {
     exhibitsMap,
     readCachedRoomState(roomId) || createDefaultSharedState()
   );
-  const decayed = applyRealisticCatDecay(hydrated);
+
+  // Check if the room document was accidentally overwritten by default/preview state
+  const legacy = await getLegacyRoomCached(roomId);
+  let mergedHydrated = hydrated;
+  let autoRestoredFromLegacy = false;
+
+  if (legacy.migrated) {
+    const missingLetters = hydrated.letters.length < legacy.state.letters.length;
+    const lostCat1Visual =
+      hydrated.cat1.breed === 'white' &&
+      hydrated.cat1.outfit === 'none' &&
+      legacy.state.cat1.breed !== 'white';
+    const lostCat2Visual =
+      hydrated.cat2.breed === 'white' &&
+      hydrated.cat2.outfit === 'none' &&
+      legacy.state.cat2.breed !== 'white';
+    const lostStreak = hydrated.streak.totalDays < legacy.state.streak.totalDays;
+
+    if (missingLetters || lostCat1Visual || lostCat2Visual || lostStreak) {
+      autoRestoredFromLegacy = true;
+      const letterMap = new Map<string, SharedState['letters'][number]>();
+      for (const l of [...legacy.state.letters, ...hydrated.letters]) {
+        if (l && l.text) {
+          const key = l.id || `${l.from}_${l.timestamp}_${l.text}`;
+          letterMap.set(key, l);
+        }
+      }
+      const mergedLetters = Array.from(letterMap.values())
+        .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+        .slice(-80);
+
+      mergedHydrated = {
+        ...hydrated,
+        nicknames: {
+          cat1:
+            hydrated.nicknames.cat1 === 'Camarada 1'
+              ? legacy.state.nicknames.cat1
+              : hydrated.nicknames.cat1,
+          cat2:
+            hydrated.nicknames.cat2 === 'Camarada 2'
+              ? legacy.state.nicknames.cat2
+              : hydrated.nicknames.cat2,
+        },
+        streak: {
+          current: Math.max(hydrated.streak.current, legacy.state.streak.current),
+          best: Math.max(hydrated.streak.best, legacy.state.streak.best),
+          totalDays: Math.max(hydrated.streak.totalDays, legacy.state.streak.totalDays),
+        },
+        wallets: {
+          cat1: {
+            fish: Math.max(hydrated.wallets.cat1.fish, legacy.state.wallets.cat1.fish),
+            paws: Math.max(hydrated.wallets.cat1.paws, legacy.state.wallets.cat1.paws),
+            coupleCoins: Math.max(
+              hydrated.wallets.cat1.coupleCoins,
+              legacy.state.wallets.cat1.coupleCoins
+            ),
+          },
+          cat2: {
+            fish: Math.max(hydrated.wallets.cat2.fish, legacy.state.wallets.cat2.fish),
+            paws: Math.max(hydrated.wallets.cat2.paws, legacy.state.wallets.cat2.paws),
+            coupleCoins: Math.max(
+              hydrated.wallets.cat2.coupleCoins,
+              legacy.state.wallets.cat2.coupleCoins
+            ),
+          },
+        },
+        unlockedItems: {
+          cat1: Array.from(
+            new Set([
+              ...(hydrated.unlockedItems.cat1 || []),
+              ...(legacy.state.unlockedItems.cat1 || []),
+            ])
+          ),
+          cat2: Array.from(
+            new Set([
+              ...(hydrated.unlockedItems.cat2 || []),
+              ...(legacy.state.unlockedItems.cat2 || []),
+            ])
+          ),
+        },
+        cat1: lostCat1Visual
+          ? {
+              ...legacy.state.cat1,
+              hunger: hydrated.cat1.hunger,
+              energy: hydrated.cat1.energy,
+              happiness: hydrated.cat1.happiness,
+            }
+          : hydrated.cat1,
+        cat2: lostCat2Visual
+          ? {
+              ...legacy.state.cat2,
+              hunger: hydrated.cat2.hunger,
+              energy: hydrated.cat2.energy,
+              happiness: hydrated.cat2.happiness,
+            }
+          : hydrated.cat2,
+        letters: mergedLetters,
+      };
+    }
+  }
+
+  const decayed = applyRealisticCatDecay(mergedHydrated);
   const finalState: SharedState = {
     ...decayed.state,
     roomPassword: '',
     lastStatsUpdateTime: Math.max(decayed.state.lastStatsUpdateTime || 0, Date.now()),
   };
+
+  if (autoRestoredFromLegacy && (isOwnerOrPartner || isAdminEmail)) {
+    try {
+      await updateDoc(roomRef, {
+        nicknames: finalState.nicknames,
+        streak: finalState.streak,
+        wallets: finalState.wallets,
+        unlockedItems: finalState.unlockedItems,
+        cat1: finalState.cat1,
+        cat2: finalState.cat2,
+        letters: finalState.letters,
+        lastStatsUpdateTime: finalState.lastStatsUpdateTime,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      // ignore if partner isn't bound yet
+    }
+  }
 
   const hasPassword = Boolean(effectiveHash);
   writeCachedRoomMeta(roomId, hasPassword);
@@ -416,7 +535,7 @@ export async function enterRoomStatic(params: {
     role: roleRes.role,
     state: finalState,
     hasPassword,
-    recovered: roleRes.isNewBinding,
+    recovered: roleRes.isNewBinding || autoRestoredFromLegacy,
   };
 }
 
@@ -589,4 +708,131 @@ export async function adminSaveFullHackStatic(params: {
   writeCachedRoomState(roomId, nextState);
   return { ok: true, state: nextState };
 }
+
+export async function adminRestoreLegacyBackupStatic(params: {
+  roomId: string;
+  callerRole: PlayerRole;
+  firebaseUser: User | null;
+  isDevBypass: boolean;
+  state: SharedState;
+}): Promise<{ ok: true; state: SharedState } | { ok: false; error: string }> {
+  const { roomId, callerRole, firebaseUser, isDevBypass, state } = params;
+  if (
+    !isAdminAccount({
+      email: firebaseUser?.email,
+      role: callerRole,
+      isDevBypass,
+    })
+  ) {
+    return { ok: false, error: 'Acesso restrito ao administrador.' };
+  }
+
+  legacyCache.delete(roomId);
+  const legacy = await getLegacyRoomCached(roomId);
+  if (!legacy.migrated) {
+    return {
+      ok: false,
+      error: 'Não foi possível carregar o backup original do servidor legado.',
+    };
+  }
+
+  const letterMap = new Map<string, SharedState['letters'][number]>();
+  for (const l of [...legacy.state.letters, ...state.letters]) {
+    if (l && l.text) {
+      const key = l.id || `${l.from}_${l.timestamp}_${l.text}`;
+      letterMap.set(key, l);
+    }
+  }
+  const mergedLetters = Array.from(letterMap.values())
+    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    .slice(-80);
+
+  const restoredState: SharedState = {
+    ...state,
+    nicknames: {
+      cat1: legacy.state.nicknames.cat1 || state.nicknames.cat1,
+      cat2: legacy.state.nicknames.cat2 || state.nicknames.cat2,
+    },
+    loveScore: 100,
+    streak: {
+      current: Math.max(state.streak.current, legacy.state.streak.current),
+      best: Math.max(state.streak.best, legacy.state.streak.best),
+      totalDays: Math.max(state.streak.totalDays, legacy.state.streak.totalDays),
+    },
+    wallets: {
+      cat1: {
+        fish: Math.max(state.wallets.cat1.fish, legacy.state.wallets.cat1.fish),
+        paws: Math.max(state.wallets.cat1.paws, legacy.state.wallets.cat1.paws),
+        coupleCoins: Math.max(
+          state.wallets.cat1.coupleCoins,
+          legacy.state.wallets.cat1.coupleCoins
+        ),
+      },
+      cat2: {
+        fish: Math.max(state.wallets.cat2.fish, legacy.state.wallets.cat2.fish),
+        paws: Math.max(state.wallets.cat2.paws, legacy.state.wallets.cat2.paws),
+        coupleCoins: Math.max(
+          state.wallets.cat2.coupleCoins,
+          legacy.state.wallets.cat2.coupleCoins
+        ),
+      },
+    },
+    inventories: {
+      cat1: { ...(legacy.state.inventories.cat1 || {}), ...(state.inventories.cat1 || {}) },
+      cat2: { ...(legacy.state.inventories.cat2 || {}), ...(state.inventories.cat2 || {}) },
+    },
+    unlockedItems: {
+      cat1: Array.from(
+        new Set([
+          ...(state.unlockedItems.cat1 || []),
+          ...(legacy.state.unlockedItems.cat1 || []),
+        ])
+      ),
+      cat2: Array.from(
+        new Set([
+          ...(state.unlockedItems.cat2 || []),
+          ...(legacy.state.unlockedItems.cat2 || []),
+        ])
+      ),
+    },
+    cat1: {
+      ...legacy.state.cat1,
+      hunger: 100,
+      energy: 100,
+      happiness: 100,
+    },
+    cat2: {
+      ...legacy.state.cat2,
+      hunger: 100,
+      energy: 100,
+      happiness: 100,
+    },
+    letters: mergedLetters,
+    lastStatsUpdateTime: Math.max((state.lastStatsUpdateTime || 0) + 1, Date.now()),
+  };
+
+  if (firebaseUser && !isDevBypass && db) {
+    try {
+      await updateDoc(doc(db, 'rooms', roomId), {
+        nicknames: restoredState.nicknames,
+        loveScore: restoredState.loveScore,
+        streak: restoredState.streak,
+        wallets: restoredState.wallets,
+        inventories: restoredState.inventories,
+        unlockedItems: restoredState.unlockedItems,
+        cat1: restoredState.cat1,
+        cat2: restoredState.cat2,
+        letters: restoredState.letters,
+        lastStatsUpdateTime: restoredState.lastStatsUpdateTime,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `rooms/${roomId}`);
+    }
+  }
+
+  writeCachedRoomState(roomId, restoredState);
+  return { ok: true, state: restoredState };
+}
+
 

@@ -8,6 +8,7 @@ import {
 } from './lib/firebase';
 import { useFirestoreRoomSync } from './lib/firestoreSync';
 import {
+  adminRestoreLegacyBackupStatic,
   adminSaveFishStatic,
   adminSaveFullHackStatic,
   checkSessionStatic,
@@ -601,6 +602,34 @@ export default function App() {
       return { ok: true };
     } catch {
       return { ok: false, error: 'Erro de conexão ao salvar o Hack do Admin.' };
+    }
+  };
+
+  const handleAdminRestoreBackup = async (): Promise<{
+    ok: boolean;
+    error?: string;
+  }> => {
+    const canDevBypass = Boolean(import.meta.env.DEV && devBypass && !idToken);
+    if (!idToken && !canDevBypass) {
+      return { ok: false, error: 'Sessão expirada. Entre novamente com o Google.' };
+    }
+    try {
+      const res = await adminRestoreLegacyBackupStatic({
+        roomId: DEFAULT_ROOM_ID,
+        callerRole: myRole,
+        firebaseUser,
+        isDevBypass: canDevBypass,
+        state,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+      setState(res.state);
+      sfx.win();
+      showToast(
+        `Backup original restaurado! 🔥 ${res.state.streak.current} dias · ${res.state.letters.length} telegramas · Visuais de ${res.state.nicknames.cat1} & ${res.state.nicknames.cat2} recuperados!`
+      );
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Erro ao restaurar o backup original.' };
     }
   };
 
@@ -1379,6 +1408,7 @@ export default function App() {
           state={state}
           onClose={() => setAdminFishOpen(false)}
           onSaveHack={handleAdminSaveHack}
+          onRestoreLegacyBackup={handleAdminRestoreBackup}
           onSaveFish={handleAdminSaveFish}
         />
       )}
