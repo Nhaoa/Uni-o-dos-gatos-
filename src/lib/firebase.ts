@@ -18,9 +18,6 @@ export const DRIVE_SCOPES = [
 export const FIREBASE_API_KEY_STORAGE_KEY = 'uniao_firebase_api_key';
 
 export const googleAuthProvider = new GoogleAuthProvider();
-for (const scope of DRIVE_SCOPES) {
-  googleAuthProvider.addScope(scope);
-}
 
 const optionalFirestoreDbId = (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId;
 
